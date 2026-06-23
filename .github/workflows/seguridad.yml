@@ -19,4 +19,4 @@ jobs:
 
       # Paso 2: Ejecutar tu Action personalizada apuntando a tu release v1.0.0
       - name: Escaneo con Iker Rustguard
-        uses: IkerASierraR/action_rustguard@v1.0.0
+        uses: IkerASierraR/action_rustguard@union
