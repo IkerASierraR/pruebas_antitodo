@@ -1,0 +1,22 @@
+name: Prueba de Seguridad Rustguard
+
+# El flujo se activará cada vez que alguien suba código a la rama principal
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  escaneo_seguridad:
+    # GitHub nos presta un servidor Linux temporal para hacer la prueba
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Paso 1: Descargar el código del repositorio de prueba actual
+      - name: Checkout del código fuente
+        uses: actions/checkout@v4
+
+      # Paso 2: Ejecutar tu Action personalizada apuntando a tu release v1.0.0
+      - name: Escaneo con Iker Rustguard
+        uses: IkerASierraR/action_rustguard@v1.0.0
