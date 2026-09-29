@@ -1,77 +1,85 @@
 # Informe técnico — Módulo **Recibo** de AguaTacna
 
-> Análisis de solo lectura: no se modificó ningún archivo del proyecto.
+> Estado del módulo después de la rama `fix/recibo-observaciones` (29/09/2026).
 > Ruta del módulo: `shared/src/commonMain/kotlin/pe/edu/upt/aguatacna/feature/recibo/`
-> Fecha del análisis: 28/09/2026 · Responsable del módulo: Iker Alberto Sierra Ruiz
+> Responsable del módulo: Iker Alberto Sierra Ruiz
 
 ---
 
 ## 1. Resumen en una frase
 
-El módulo Recibo permite **fotografiar el recibo de agua de EPS Tacna**, convertir la foto en datos con **OCR local (Google ML Kit)**, que el usuario **revise y corrija** los campos, **guardarlo en la base de datos local (Room / SQLite)** y ver un **historial de 6 meses** que marca el consumo alto (> 100 m³) y explica cómo reclamar ante Sunass.
+El módulo Recibo permite **fotografiar el recibo de agua de EPS Tacna**, convertir la foto en datos con **OCR local (Google ML Kit en Android)**, que el usuario **revise y corrija** los campos, **guardarlo en Room / SQLite** (y, si entró con Google, **copiarlo a Supabase**) y ver un **historial de 6 meses** que marca como **Alto consumo** cualquier mes con **más de 100 m³**, con un mensaje corto para revisar fugas en casa.
 
 ---
 
 ## 2. ¿Cuántos archivos tiene?
 
+Todos los conteos salen de `find`, `wc -l` y `grep` sobre el código (no son estimados).
+
 ### 2.1 Carpeta del módulo (`commonMain/.../feature/recibo`)
 
 | Métrica | Valor |
 |---|---|
-| Archivos totales | **38** |
-| Archivos Kotlin (`.kt`) | **36** |
-| Archivos `.gitkeep` (marcadores de carpeta) | 2 (`data/`, `domain/`) |
-| Líneas de código Kotlin | **5 034** |
+| Archivos totales | **44** |
+| Archivos Kotlin (`.kt`) | **42** |
+| Archivos `.gitkeep` | 2 (`data/`, `domain/`) |
+| Líneas Kotlin (con imports y líneas en blanco) | **4 628** |
 
-### 2.2 Archivos del módulo fuera de esa carpeta (mismo dueño)
+### 2.2 Archivos del módulo en otros source sets
 
-| Source set | Archivo | Para qué |
-|---|---|---|
-| `androidMain` | `feature/recibo/infrastructure/ocr/ReconocedorTextoAndroid.kt` | Implementación real del OCR con Google ML Kit |
-| `commonTest` | 8 archivos (`DineroTest`, `EscanearReciboUseCaseTest`, `EvaluadorConsumoTest`, `FakeReciboRepositoryTest`, `ObservarHistorialUseCaseTest`, `ParserReciboEpsTacnaTest`, `PeriodoConsumoTest`, `ValidadorReciboTest`) | 37 pruebas `@Test` |
-| `androidHostTest` | `ReciboRepositoryRoomTest.kt` + `FakeReciboDao.kt` | 5 pruebas `@Test` del repositorio Room |
-| `iosMain` | *(vacía)* | No hay OCR para iOS todavía |
+| Source set | Archivos | Líneas | Para qué |
+|---|---|---|---|
+| `androidMain` | `ReconocedorTextoAndroid.kt`, `ReconocedorTextoPlataforma.android.kt` | 65 | OCR con ML Kit y su `actual` |
+| `iosMain` | `ReconocedorTextoPlataforma.ios.kt` | 19 | `actual` que pide el ingreso manual |
+| `commonTest` | 12 archivos | 1 074 | **67** pruebas `@Test` |
+| `androidHostTest` | 4 archivos (`ReciboRepositoryRoomTest`, `SincronizadorReciboTest`, `BorradorReciboStoreTest`, `FakeReciboDao`) | 335 | **12** pruebas `@Test` |
 
 ### 2.3 Detalle por capa (carpeta principal)
 
-| Capa | Archivo | Líneas |
-|---|---|---|
-| **di** | `ReciboModule.kt` | 26 |
-| **domain/model** | `Dinero.kt` | 56 |
-| | `ModelosSoporte.kt` (Campo, OrigenDatos, TipoConsumo, EstadoConsumo, LineaTexto, TextoReconocido) | 110 |
-| | `PeriodoConsumo.kt` | 96 |
-| | `Recibo.kt` | 36 |
-| | `ReciboBorrador.kt` | 53 |
-| **domain/port** | `ParserRecibo.kt` | 16 |
-| | `ReconocedorTexto.kt` | 8 |
-| **domain/repository** | `ReciboRepository.kt` | 21 |
-| **domain/service** | `EvaluadorConsumo.kt` | 73 |
-| | `ValidadorRecibo.kt` | 58 |
-| **domain/usecase** | `EscanearReciboUseCase.kt` | 40 |
-| | `ConfirmarReciboUseCase.kt` | 15 |
-| | `CorregirCampoUseCase.kt` | 57 |
-| | `ObservarResumenUseCase.kt` | 72 |
-| | `ObservarHistorialUseCase.kt` | 143 |
-| **data** | `BorradorReciboStore.kt` | 26 |
-| | `ReciboRepositoryRoom.kt` | 33 |
-| | `FakeReciboRepository.kt` | 34 |
-| | `SemillaDepuracion.kt` | 41 |
-| **data/local** | `ReciboDao.kt` | 23 |
-| | `ReciboEntity.kt` | 60 |
-| **infrastructure/ocr** | `ParserReciboEpsTacna.kt` | 230 |
-| **presentation** (ViewModels) | `ReciboViewModel.kt` | 82 |
-| | `CapturaViewModel.kt` | 84 |
-| | `RevisionViewModel.kt` | 71 |
-| | `HistorialViewModel.kt` | 104 |
-| **presentation** (Pantallas) | `ReciboScreen.kt` | 261 |
-| | `CamaraReciboScreen.kt` | 391 |
-| | `ReciboFotoScreen.kt` | 230 |
-| | `ReciboManualMedidorScreen.kt` | 266 |
-| | `ReciboHistorialScreen.kt` | 183 |
-| **presentation/componentes** | `ReciboGeneralComponentes.kt` | 759 |
-| | `ReciboFotoComponentes.kt` | 362 |
-| | `ReciboHistorialComponentes.kt` | 553 |
-| | `ReciboManualComponentes.kt` | 361 |
+| Capa | Archivo | Líneas | `fun` |
+|---|---|---|---|
+| **di** | `ReciboModule.kt` | 44 | 0 |
+| **domain/model** | `Dinero.kt` | 56 | 8 |
+| | `ModelosSoporte.kt` (Campo, OrigenDatos, TipoConsumo, EstadoConsumo, LineaTexto, TextoReconocido) | 120 | 4 |
+| | `PeriodoConsumo.kt` | 102 | 5 |
+| | `Recibo.kt` | 36 | 1 |
+| | `ReciboBorrador.kt` | 58 | 2 |
+| **domain/port** | `ParserRecibo.kt` | 16 | 2 |
+| | `ReconocedorTexto.kt` | 8 | 1 |
+| **domain/repository** | `ReciboRepository.kt` | 21 | 4 |
+| **domain/service** | `EvaluadorConsumo.kt` | 38 | 3 |
+| | `ValidadorRecibo.kt` | 43 | 1 |
+| **domain/usecase** | `ConfirmarReciboUseCase.kt` | 39 | 2 |
+| | `CorregirCampoUseCase.kt` | 70 | 2 |
+| | `EscanearReciboUseCase.kt` | 36 | 1 |
+| | `ObservarHistorialUseCase.kt` | 74 | 3 |
+| | `ObservarResumenUseCase.kt` | 43 | 1 |
+| **data** | `BorradorReciboStore.kt` | 51 | 3 |
+| | `FakeReciboRepository.kt` | 38 | 5 |
+| | `ReciboRepositoryRoom.kt` | 33 | 4 |
+| **data/local** | `ReciboDao.kt` | 23 | 4 |
+| | `ReciboEntity.kt` | 60 | 2 |
+| | `ReciboBorradorDao.kt` | 19 | 3 |
+| | `ReciboBorradorEntity.kt` | 98 | 6 |
+| **data/sync** | `SincronizadorRecibo.kt` (+ interfaz `NubeRecibo`) | 62 | 5 |
+| | `NubeReciboSupabase.kt` | 52 | 4 |
+| **infrastructure/ocr** | `ParserReciboEpsTacna.kt` | 127 | 12 |
+| | `ReconstructorFilas.kt` | 24 | 2 |
+| | `ReconocedorTextoPlataforma.kt` (`expect`) | 6 | 1 |
+| **presentation** (ViewModels) | `ReciboViewModel.kt` | 91 | 4 |
+| | `CapturaViewModel.kt` | 92 | 6 |
+| | `RevisionViewModel.kt` | 70 | 3 |
+| | `HistorialViewModel.kt` | 66 | 3 |
+| | `CorreccionViewModel.kt` (+ `aplicarTecla`) | 85 | 6 |
+| **presentation** (Pantallas) | `ReciboScreen.kt` | 214 | 3 |
+| | `CamaraReciboScreen.kt` | 329 | 8 |
+| | `ReciboFotoScreen.kt` | 138 | 3 |
+| | `ReciboManualMedidorScreen.kt` | 124 | 2 |
+| | `ReciboHistorialScreen.kt` | 97 | 1 |
+| **presentation/componentes** | `ReciboGeneralComponentes.kt` | 751 | 9 |
+| | `ReciboFotoComponentes.kt` | 419 | 7 |
+| | `ReciboHistorialComponentes.kt` | 397 | 4 |
+| | `ReciboManualComponentes.kt` | 358 | 4 |
 
 ---
 
@@ -79,14 +87,14 @@ El módulo Recibo permite **fotografiar el recibo de agua de EPS Tacna**, conver
 
 | Tipo | Cantidad |
 |---|---|
-| Declaraciones `fun` en la carpeta principal | **115** |
-| + `reconocer()` en `ReconocedorTextoAndroid` (androidMain) | 1 |
-| **Total del módulo** | **116** |
-| De ellas, funciones de UI `@Composable` | 36 |
-| De ellas, funciones de lógica (dominio, datos, OCR, ViewModels) | 80 |
-| De ellas, firmas abstractas de interfaces (repositorio, DAO, puertos) | 11 |
+| Declaraciones `fun` en la carpeta principal | **154** |
+| + `androidMain` (`reconocer`, `crearReconocedorTexto`) | 2 |
+| + `iosMain` (`crearReconocedorTexto`, `reconocer`) | 2 |
+| **Total del módulo** | **158** |
+| De ellas, funciones `@Composable` | 39 |
+| De ellas, firmas abstractas (DAO, puertos, repositorio, `NubeRecibo`) + 1 `expect` | 17 |
 
-Clases principales: 5 casos de uso, 2 servicios de dominio, 4 ViewModels, 5 pantallas, 3 interfaces (puertos + repositorio), 1 DAO, 1 entidad Room.
+Clases principales: 5 casos de uso, 2 servicios de dominio, 5 ViewModels, 5 pantallas, 4 interfaces (2 puertos, repositorio, `NubeRecibo`), 2 DAO, 2 entidades Room, 1 sincronizador.
 
 ---
 
@@ -94,244 +102,217 @@ Clases principales: 5 casos de uso, 2 servicios de dominio, 4 ViewModels, 5 pant
 
 ### 4.1 La función de OCR (foto → información)
 
-El OCR **no es una sola función**, es una cadena de tres piezas:
-
 | Paso | Clase · función | Qué hace |
 |---|---|---|
-| 1 | `EscanearReciboUseCase.invoke(bytesImagen: ByteArray)` | **Es el caso de uso "OCR"**. Recibe los bytes de la foto y devuelve `Result<ReciboBorrador>`. Orquesta los dos pasos siguientes. |
-| 2 | `ReconocedorTextoAndroid.reconocer(bytesImagen)` | Convierte bytes → `Bitmap` → `InputImage` y llama a **Google ML Kit Text Recognition** (modelo latino, 100 % en el teléfono, sin internet). Devuelve `TextoReconocido` (texto plano + líneas con posición). |
-| 3 | `ParserReciboEpsTacna.parsear(texto)` / `parsearTexto(texto)` | Normaliza el texto (mayúsculas, sin tildes, `M3→M³`) y extrae cada campo con **expresiones regulares** propias del recibo de EPS Tacna. Asigna a cada campo una **confianza** (0.95 si coincide con la etiqueta exacta, 0.65–0.75 si usó un respaldo). |
+| 1 | `EscanearReciboUseCase.invoke(bytesImagen)` | Caso de uso "OCR". Recibe los bytes y devuelve `Result<ReciboBorrador>`. Recibe el reconocedor y el parser por constructor (sin valores por defecto). |
+| 2 | `ReconocedorTexto.reconocer(bytes)` | Android: `ReconocedorTextoAndroid` (ML Kit, en el teléfono). iOS: falla con "En iOS aún no se puede leer el recibo con la cámara. Ingresa los datos a mano." Se elige con `expect fun crearReconocedorTexto()`. |
+| 3 | `ParserReciboEpsTacna.parsear(texto)` | Lee **dos veces**: el `textoPlano` de ML Kit y el texto rearmado por filas con `reconstruirFilas(lineas)`. Por cada campo manda el texto plano, salvo que las filas den un valor que falta o más confiable. |
 
-Extractores privados del parser (10): `extraerPeriodoConsumo`, `extraerConsumoM3`, `extraerImporteTotal`, `extraerTipoConsumo`, `extraerFechaEmision`, `extraerFechaVencimiento`, `extraerLecturaAnterior`, `extraerLecturaActual`, `extraerNumeroMedidor`, `extraerNumeroRecibo`, más `normalizar` y `parsearFecha`.
+`reconstruirFilas` ordena las líneas por su centro vertical, junta en una fila las que están a menos de medio alto de línea, las ordena por `x` y las une con dos espacios. Así "PROMEDIO m³" y "23", que ML Kit devuelve en bloques distintos, quedan como `PROMEDIO M³  23`.
 
-Si no encuentra **ni consumo ni importe**, responde `ResultadoParseo.NoLegible("No pudimos leer el consumo ni el importe total de tu recibo.")`.
+Reglas del consumo (en este orden): **Volumen Fac m³** (0.95) → **PROMEDIO m³** (0.90, exige la `M` de la unidad para no confundirse con "Tipo Consumo: PROMEDIO" ni con "MEDIDOR") → **CONSUMO FACTURADO** (0.75). Aceptan que el "³" salga como `²`, `ª`, `°`, `'`.
+
+Helpers privados: `buscar`, `buscarEntero`, `buscarTexto`, `buscarFecha`, `campo`, `elegir`, `combinar`, `extraer`, `parsearFecha`, más `normalizar` (pública).
 
 ### 4.2 Casos de uso (domain/usecase)
 
 | Caso de uso | Función | Qué hace |
 |---|---|---|
 | `EscanearReciboUseCase` | `invoke(ByteArray)` | Foto → OCR → Parser → `ReciboBorrador` |
-| `CorregirCampoUseCase` | `invoke(borrador, CampoEditable)` | Cambia un campo (consumo, lectura anterior/actual, importe, período), lo pone con confianza 1.0 y `corregidoPorUsuario = true` |
-| `ConfirmarReciboUseCase` | `invoke(Recibo): Boolean` | Guarda el recibo (upsert por período) y devuelve `true` si reemplazó uno existente |
-| `ObservarResumenUseCase` | `invoke(): Flow<ResumenRecibo?>` | Toma el recibo más reciente, calcula promedio, variación % y estado (Alto consumo si > 100 m³) |
-| `ObservarHistorialUseCase` | `invoke(): Flow<HistorialCompleto?>` | Arma la ventana de 6 meses para el gráfico de barras con estado de cada mes |
+| `CorregirCampoUseCase` | `invoke(borrador, CampoEditable): ResultadoCorreccion` | Valida y corrige: consumo 0–999; lecturas ≥ 0 con anterior ≤ actual; importe > 0 y ≤ S/ 99 999. Devuelve `Aplicada(borrador)` o `Invalida(mensaje)` |
+| `ConfirmarReciboUseCase` | `invoke(borrador): ResultadoConfirmacion` | `Incompleto` si faltan período, consumo o importe; `Duplicado(periodo)` si otro recibo ocupa ese mes; si no, guarda y devuelve `Guardado(recibo, reemplazo)` |
+| `ObservarResumenUseCase` | `invoke(): Flow<ResumenRecibo?>` | Recibo más reciente + estado con `EvaluadorConsumo` |
+| `ObservarHistorialUseCase` | `invoke(): Flow<HistorialCompleto?>` | Los 6 meses que **terminan en el recibo más reciente**, cada uno evaluado con `EvaluadorConsumo` |
 
 ### 4.3 Servicios de dominio
 
 | Servicio | Funciones | Regla |
 |---|---|---|
-| `EvaluadorConsumo` | `evaluar(...)`, `calcularMetricas(...)` | Regla Sunass (art. 88): **atípico** si supera en > 100 % el promedio de hasta 6 meses previos; necesita mínimo 3 meses; si el recibo es "por PROMEDIO" devuelve `FacturadoPorPromedio` |
-| `ValidadorRecibo` | `validar(recibo)` | Advertencias no bloqueantes: consumo 0–999, vencimiento ≥ emisión, `lecturaActual − lecturaAnterior = consumo`, lectura actual ≥ anterior |
+| `EvaluadorConsumo` | `promedio`, `variacionPorcentaje`, `evaluar` | **Única regla**: `consumo > LIMITE_M3 (100)` → `Atipico`; tipo PROMEDIO → `FacturadoPorPromedio`; sin meses previos → `SinHistorial`; si no → `Normal`. El promedio (hasta 6 meses) y la variación son solo referencia |
+| `ValidadorRecibo` | `validar(borrador)` | Advertencias no bloqueantes con los datos que haya: consumo 0–999, vencimiento ≥ emisión, lecturas coherentes con el consumo. Se muestran en "Revisa tu recibo" |
 
 ### 4.4 Modelos (value objects)
 
 | Modelo | Funciones destacadas |
 |---|---|
-| `Dinero` (céntimos en `Long`, nunca `Double`) | `formatear()` → "S/ 74,20", `formatearSoloNumero()`, `parsear("78.00")`, `desdeSoles()`, `plus`, `minus`, `compareTo` |
-| `PeriodoConsumo` (año + mes) | `parsear("AGOSTO-2026")`, `anterior()`, `siguiente()`, `compareTo`, `mesCorto`, `mesLargo`, `displayCompleto` |
-| `Campo<T>` | valor + `confianza` + `corregidoPorUsuario`; `esDudoso` si confianza < 0.7 |
-| `ReciboBorrador` | `esConfirmable` (consumo + importe), `tieneCamposDudosos`, `confirmar(id)` → `Recibo` |
-| `Recibo` | `aBorrador()` (para editarlo de nuevo) |
-| `TipoConsumo` | `parsear()` → LECTURA / PROMEDIO / DESCONOCIDO |
-| `EstadoConsumo` | `Atipico`, `Normal`, `SinHistorial`, `FacturadoPorPromedio` (cada uno trae su texto de chip y mensaje) |
+| `Dinero` (céntimos `Long`) | `formatear()` → "S/ 74,20", `parsear("78,29")` (redondea), `desdeSoles`, `plus`, `minus` |
+| `PeriodoConsumo` | `parsear("AGOSTO-2026")`, `de(fecha)`, `anterior()`, `siguiente()`, `mesCorto` ("Set"), `mesLargo`, `displayCompleto` |
+| `Campo<T>` | `esDudoso` (< 0.7), `corregir(valor)`, `Campo.confirmado(valor)` |
+| `ReciboBorrador` | `idRecibo`, `esConfirmable` (período + consumo + importe), `tieneCamposDudosos`, `confirmar(id)` (lo que falta queda en `null`), `ReciboBorrador.vacio(periodo)` |
+| `Recibo` | `aBorrador()` (lleva el `id` para poder editarlo) |
+| `EstadoConsumo` | `Atipico` ("{Mes} superó los 100 m³. Revisa si hay alguna fuga en casa."), `Normal`, `SinHistorial`, `FacturadoPorPromedio` |
 
 ### 4.5 Datos
 
 | Clase | Funciones |
 |---|---|
 | `ReciboRepository` (interfaz) | `observarRecibos()`, `guardar()`, `obtenerPorPeriodo()`, `eliminar()` |
-| `ReciboRepositoryRoom` | Implementación real sobre Room |
-| `FakeReciboRepository` | Implementación en memoria para pruebas y vistas previas (+ `cargarTodos()`) |
-| `ReciboDao` | `observarTodos()`, `buscarPorPeriodo(anio, mes)`, `guardar()` (`@Upsert`), `borrarPorId()` |
-| `ReciboEntity` | `toDomain()`, `Recibo.toEntity()` |
-| `BorradorReciboStore` | `guardar()`, `limpiar()`, `actualizar()` — guarda el borrador **solo en memoria** mientras dura la revisión |
-| `SemillaDepuracion` | `generarRecibos()` — 6 recibos de ejemplo (mar–ago 2026) |
+| `ReciboRepositoryRoom` | Room; al guardar reutiliza el id del recibo que ya ocupa el período |
+| `FakeReciboRepository` | En memoria; imita a Room (mismo id por período, nunca dos filas con el mismo id) |
+| `ReciboDao` / `ReciboEntity` | Tabla `recibo` |
+| `ReciboBorradorDao` / `ReciboBorradorEntity` | Tabla `recibo_borrador`: una fila (`id = 1`) con el borrador en JSON (`BorradorGuardado`) |
+| `BorradorReciboStore` | `borrador`, `guardar`, `limpiar`, `asegurar(crear)`; con DAO se restaura al abrir y se copia a Room en cada cambio |
+| `SincronizadorRecibo` | `sincronizar()`, `mantenerSincronizado()` |
+| `NubeReciboSupabase` | `descargar()` (null sin sesión), `subir()` (upsert con `usuario_id`) |
 
-### 4.6 ViewModels (presentación)
+### 4.6 ViewModels
 
-| ViewModel | Funciones | Estado que expone |
+| ViewModel | Funciones | Estado |
 |---|---|---|
-| `ReciboViewModel` | `desdeInyeccion()`, `conDatosDePrueba()` | `ReciboUiState`: Cargando / SinRecibos / ConDatos |
-| `CapturaViewModel` | `onFotoCapturada(bytes)`, `reiniciar()`, `liberarFoto()`, `onCleared()` | `CapturaUiState`: Inactivo / Procesando / Exito / Error |
-| `RevisionViewModel` | `confirmar(onCompletado)`, `guardarBorrador()`, `descartar()`, `descartarError()` | `borrador` + `errorDuplicado` |
-| `HistorialViewModel` | `seleccionarMes(periodo)`, `mostrarDialogoReclamo(bool)` | `HistorialUiState`: Cargando / SinHistorial / ConDatos |
+| `ReciboViewModel` | `iniciarManual()`, `prepararRevision(recibo)`; en `init` lanza `mantenerSincronizado()` | `ReciboUiState` |
+| `CapturaViewModel` | `onFotoCapturada`, `iniciarManual()`, `reiniciar()` | `CapturaUiState` |
+| `RevisionViewModel` | `confirmar(onCompletado)`, `descartarError()`; asegura un borrador del mes actual | `borrador`, `advertencias`, `errorDuplicado` |
+| `HistorialViewModel` | `seleccionarMes`, `prepararEdicion(periodo, onListo)` | `HistorialUiState` |
+| `CorreccionViewModel` | `valorInicial(campo)`, `periodoInicial()`, `guardar(campo, entrada, periodo): String?` | `borrador`, `periodoActual` |
 
-### 4.7 Pantallas y componentes (@Composable)
+`aplicarTecla(entrada, tecla, permiteComa, maxDigitos)` es una función pura para el teclado en pantalla. Todos los ViewModels obtienen la fecha del `Reloj` inyectado por Koin.
+
+### 4.7 Pantallas y componentes
 
 | Pantalla | Qué muestra |
 |---|---|
-| `ReciboScreen` | **Enrutador interno** del módulo. Cambia entre sub-pantallas con la variable `subPantalla`: `principal`, `camara`, `foto`, `manualMedidor`, `historial` |
-| `ReciboContenidoPrincipal` | Tarjeta del recibo activo, estado de consumo, botones "Escanear", "Ingresar manual", "Ver historial" |
-| `CamaraReciboScreen` | Abre la cámara del sistema; muestra "Procesando OCR", errores o permisos denegados |
-| `ReciboFotoScreen` | "Revisa tu recibo": lista de campos, chip *Leído / Revisa los datos / Manual*, botón Confirmar |
-| `ReciboManualMedidorScreen` | Teclado numérico estilo medidor o selector de mes para corregir un campo |
-| `ReciboHistorialScreen` | Gráfico de barras 6 meses, detalle del mes, diálogo "Cómo reclamar" |
-
-Componentes: `TipInformativo`, `ZonaRetomarFoto`, `TarjetaDocumentoRecibo`, `ListaCamposRevision`, `FilaCampoRevision`, `BadgeEstado`, `ReciboBarraSuperior`, `TarjetaReciboActivo`, `TarjetaEscanearPrincipal`, `TarjetaEscanear`, `SeccionHerramientas`, `TarjetaHerramienta`, `GraficoBarrasHistorial`, `AlertaEstadoHistorial`, `DetallePeriodoHistorial`, `FilaDetalle`, `DialogoComoReclamar`, `PasoReclamo`, `DisplayDigitosMedidor`, `CajaDigito`, `TecladoNumericoMedidor`, `SelectorPeriodoMeses`, y privadas `PantallaProcesandoOcr`, `PantallaErrorLectura`, `PantallaPermisoDenegado`, `PantallaPermisoDenegadoPermanente`, `BotonesFlotantesRevision`, `BotonesAccionHistorial`, `BotonGuardarCorreccion`, `EncabezadoRecibo`.
+| `ReciboScreen` | Enrutador interno (`subPantalla`): `principal`, `camara`, `foto`, `manualMedidor`, `historial`. Ya no usa `KoinPlatform` ni corrutinas: delega en los ViewModels |
+| `CamaraReciboScreen` | Cámara, "Leyendo recibo…", errores y permisos con una sola `TarjetaAvisoCamara` |
+| `ReciboFotoScreen` | "Revisa tu recibo": `ChipRevision`, avisos (`AvisoRevision`) de duplicado y advertencias, campos y Confirmar |
+| `ReciboManualMedidorScreen` | Teclado estilo medidor o selector de mes; solo maneja teclas y muestra el error |
+| `ReciboHistorialScreen` | Gráfico de 6 meses con la línea en `EvaluadorConsumo.LIMITE_M3`, alerta corta y detalle del mes |
 
 ---
 
 ## 5. Requerimientos
 
-### 5.1 Requerimientos funcionales (lo que el código hace hoy)
+### 5.1 Requerimientos funcionales
 
 | ID | Requerimiento | Dónde se implementa |
 |---|---|---|
-| RF-01 | Capturar una foto del recibo con la cámara, pidiendo el permiso de cámara | `CamaraReciboScreen`, `core/util/capturaFoto.kt` (FileKit + moko-permissions) |
-| RF-02 | Reconocer el texto de la foto con OCR local | `ReconocedorTextoAndroid` (ML Kit) |
-| RF-03 | Extraer del texto: período, consumo m³, importe, tipo de consumo, fechas de emisión y vencimiento, lecturas anterior/actual, N.º de medidor y N.º de recibo | `ParserReciboEpsTacna` |
-| RF-04 | Indicar la confianza de cada dato y resaltar los dudosos (< 70 %) | `Campo.esDudoso`, chip "Revisa los datos" |
-| RF-05 | Mostrar error claro y reintentar si no se pudo leer; ofrecer ingreso manual | `PantallaErrorLectura` |
-| RF-06 | Ingresar un recibo manualmente (sin foto) | `onIngresarManual` → `OrigenDatos.MANUAL` |
-| RF-07 | Corregir cualquier campo clave (consumo, lecturas, importe, período) | `ReciboManualMedidorScreen` + `CorregirCampoUseCase` |
-| RF-08 | Confirmar y guardar el recibo; exigir mínimo consumo + importe | `RevisionViewModel.confirmar`, `esConfirmable` |
-| RF-09 | Impedir dos recibos del mismo mes (aviso de duplicado) | `RevisionViewModel` (`errorDuplicado`) |
-| RF-10 | Mostrar el resumen del último recibo: importe, vencimiento, consumo, variación vs. promedio | `ObservarResumenUseCase`, `ReciboViewModel` |
-| RF-11 | Clasificar el consumo: Normal / Alto consumo (> 100 m³) / Registro (sin historial) / Por promedio | `EstadoConsumo`, `EvaluadorConsumo` |
-| RF-12 | Ver el historial de 6 meses en gráfico de barras y seleccionar un mes | `ObservarHistorialUseCase`, `HistorialViewModel` |
-| RF-13 | Explicar cómo reclamar ante EPS / Sunass | `DialogoComoReclamar` |
-| RF-14 | Modificar un recibo desde el historial | `onModificarRecibo` (ver observación 11.1) |
-| RF-15 | Volver a tomar la foto desde la revisión | `ZonaRetomarFoto` |
+| RF-01 | Capturar una foto del recibo pidiendo el permiso de cámara | `CamaraReciboScreen`, `core/util/capturaFoto` |
+| RF-02 | Reconocer el texto de la foto con OCR local (Android) | `ReconocedorTextoAndroid` |
+| RF-03 | En iOS, avisar que el OCR no está disponible y ofrecer el ingreso manual | `ReconocedorTextoPlataforma.ios.kt` + pantalla de error |
+| RF-04 | Extraer período, consumo m³ (Volumen Fac o PROMEDIO m³), importe, tipo, fechas, lecturas, medidor y N.º de recibo, aunque etiquetas y valores salgan en bloques distintos | `ParserReciboEpsTacna`, `reconstruirFilas` |
+| RF-05 | Indicar la confianza y resaltar los datos dudosos (< 70 %) | `Campo.esDudoso`, `ChipRevision` |
+| RF-06 | Mostrar advertencias de coherencia sin bloquear la confirmación | `ValidadorRecibo.validar(borrador)`, `AvisoRevision` |
+| RF-07 | Ingresar un recibo a mano con el mes actual | `ReciboBorrador.vacio`, `iniciarManual()` |
+| RF-08 | Corregir consumo, lecturas, importe y período con validación | `CorregirCampoUseCase`, `CorreccionViewModel` |
+| RF-09 | Confirmar con período + consumo + importe | `ConfirmarReciboUseCase` |
+| RF-10 | Impedir dos recibos del mismo mes, pero permitir **modificar** uno existente o moverlo de mes | `ResultadoConfirmacion.Duplicado`, `idRecibo` |
+| RF-11 | Resumen del último recibo: importe, vencimiento, consumo y variación | `ObservarResumenUseCase` |
+| RF-12 | Marcar **Alto consumo** cuando un mes supera 100 m³, con un mensaje corto | `EvaluadorConsumo`, `EstadoConsumo.Atipico` |
+| RF-13 | Historial de los 6 meses que terminan en el último recibo; elegir un mes y modificarlo | `ObservarHistorialUseCase`, `HistorialViewModel` |
+| RF-14 | Conservar el borrador si el sistema cierra la app durante la revisión | `BorradorReciboStore` + `recibo_borrador` |
+| RF-15 | Con cuenta de Google, copiar los recibos a la nube y recuperarlos en otro teléfono | `SincronizadorRecibo`, `NubeReciboSupabase` |
 
 ### 5.2 Requerimientos no funcionales
 
-| ID | Requerimiento | Evidencia en el código |
+| ID | Requerimiento | Evidencia |
 |---|---|---|
-| RNF-01 | **Privacidad**: la foto nunca se guarda; se descarta al terminar el OCR | `CapturaViewModel.liberarFoto()` |
-| RNF-02 | **Privacidad**: no se extraen ni guardan datos personales (nombre, DNI, dirección) | Comentario del parser y de `ReciboEntity` (solo consumo y facturación) |
-| RNF-03 | **Funciona sin internet** (OCR en el dispositivo, datos en SQLite local) | ML Kit on-device + Room · Constitución art. II |
-| RNF-04 | **Exactitud monetaria**: dinero en céntimos `Long`, nunca `Double` | `Dinero` |
-| RNF-05 | **Dominio puro** sin Android/Room/Koin, testeable en JVM | `domain/` (con una excepción, ver 11.2) |
-| RNF-06 | **Arquitectura limpia + MVVM**, un estado inmutable por pantalla | `sealed interface ...UiState` |
-| RNF-07 | **UI reactiva**: la pantalla se actualiza sola al cambiar la BD | `Flow` + `StateFlow` + `stateIn(WhileSubscribed(5000))` |
-| RNF-08 | **Multiplataforma** (Android / iOS) con Kotlin Multiplatform y Compose Multiplatform | `commonMain` |
-| RNF-09 | **Rendimiento**: OCR fuera del hilo principal | `withContext(Dispatchers.Default)` |
-| RNF-10 | **Usabilidad**: mensajes en español, formato peruano "S/ 74,20", meses "Set" | `Dinero.formatear`, `PeriodoConsumo` |
-| RNF-11 | **Mantenibilidad / pruebas**: casos de uso con pruebas unitarias; cobertura de dominio ≥ 70 % | 42 pruebas (`commonTest` + `androidHostTest`) |
-| RNF-12 | **Esquema versionado** con migraciones automáticas | `AguaTacnaDatabase` v4, `AutoMigration` |
-| RNF-13 | **Normativa**: regla de consumo atípico de Sunass (art. 88) | `EvaluadorConsumo` |
+| RNF-01 | **Privacidad**: la foto nunca se guarda | `CapturaViewModel.liberarFoto()` |
+| RNF-02 | **Privacidad**: sin nombre, DNI ni dirección en Room ni en Supabase; RLS "cada usuario lo suyo" | `ReciboEntity`, `BorradorGuardado`, migración `20260929_recibo_tabla_inicial.sql` |
+| RNF-03 | **Sin conexión como base**: Room es la fuente de verdad; la nube solo copia | `SincronizadorRecibo` (errores de red → `false`) |
+| RNF-04 | **Exactitud monetaria**: céntimos `Long`, redondeo al escribir el importe | `Dinero.parsear` |
+| RNF-05 | **Dominio puro**: `domain/` solo usa Kotlin estándar, corrutinas y kotlinx-datetime | `EscanearReciboUseCase` ya no importa infraestructura |
+| RNF-06 | **El ViewModel orquesta, no calcula**; los composables solo dibujan | Estado y variación en `EvaluadorConsumo`; validaciones en `CorregirCampoUseCase` |
+| RNF-07 | **UI reactiva** | `Flow` + `StateFlow` |
+| RNF-08 | **Multiplataforma** con `expect/actual` | `crearReconocedorTexto()` |
+| RNF-09 | **OCR fuera del hilo principal** | `withContext(Dispatchers.Default)` |
+| RNF-10 | **Usabilidad**: español, "S/ 74,20", "Set" | `Dinero`, `PeriodoConsumo` |
+| RNF-11 | **Pruebas**: 79 pruebas del módulo | `commonTest` (67) + `androidHostTest` (12) |
+| RNF-12 | **Esquema versionado**: Room v5 con `AutoMigration(4, 5)` y `schemas/.../5.json` | `AguaTacnaDatabase` |
 
 ---
 
 ## 6. Arquitectura que utiliza
 
-**Clean Architecture (3 capas + infraestructura) + MVVM + patrones tácticos de DDD + Puertos y Adaptadores**, dentro de un proyecto **Kotlin Multiplatform**.
+**Clean Architecture + MVVM + DDD táctico + Puertos y Adaptadores**, en Kotlin Multiplatform.
 
 ```
 feature/recibo/
-├── presentation/   MVVM → Pantallas Compose + ViewModels + UiState sellado
+├── presentation/   Pantallas Compose + 5 ViewModels + UiState sellado
 ├── domain/         Núcleo puro
-│   ├── model/        Value objects y entidades (Recibo, Dinero, PeriodoConsumo, Campo…)
-│   ├── service/      Servicios de dominio (EvaluadorConsumo, ValidadorRecibo)
-│   ├── usecase/      Casos de uso (Escanear, Corregir, Confirmar, ObservarResumen, ObservarHistorial)
-│   ├── port/         Puertos (ReconocedorTexto, ParserRecibo)  ← Hexagonal
-│   └── repository/   Contrato ReciboRepository
-├── data/           Adaptadores de persistencia (Room, Fake, Store en memoria)
-├── infrastructure/ Adaptador OCR (ParserReciboEpsTacna) + androidMain: ReconocedorTextoAndroid
+│   ├── model/        Recibo, ReciboBorrador, Dinero, PeriodoConsumo, Campo, EstadoConsumo…
+│   ├── service/      EvaluadorConsumo (regla de 100 m³), ValidadorRecibo
+│   ├── usecase/      Escanear, Corregir, Confirmar, ObservarResumen, ObservarHistorial
+│   ├── port/         ReconocedorTexto, ParserRecibo
+│   └── repository/   ReciboRepository
+├── data/           Room (recibo, recibo_borrador), Fake, Store, sync/ (Supabase)
+├── infrastructure/ ParserReciboEpsTacna, reconstruirFilas, expect crearReconocedorTexto
 └── di/             Koin: moduloRecibo
 ```
 
-| Tecnología | Versión | Uso en Recibo |
-|---|---|---|
-| Kotlin | 2.4.10 | Lenguaje |
-| Compose Multiplatform | 1.11.1 | Toda la UI |
-| Koin | 4.2.2 | Inyección de dependencias (`moduloRecibo`, `KoinPlatform.getKoin()`) |
-| Room KMP | 2.8.5 | Tabla `recibo` en `aguatacna.db` |
-| Google ML Kit Text Recognition | 16.0.1 | OCR en Android |
-| FileKit | 0.10.0 | Abrir la cámara y leer los bytes de la foto |
-| moko-permissions | 0.19.1 | Permiso de cámara |
-| kotlinx-datetime / coroutines / Flow | — | Fechas y reactividad |
-
-Patrones concretos: **Repository**, **Use Case / Interactor**, **Value Object** (`Dinero`, `PeriodoConsumo`), **Ports & Adapters** (`ReconocedorTexto` ↔ `ReconocedorTextoAndroid`), **Strategy** (`ParserRecibo`), **State (UiState sellado)**, **Upsert por clave natural** (período), **Fake** para pruebas.
+| Tecnología | Uso en Recibo |
+|---|---|
+| Kotlin 2.4 · Compose Multiplatform | Lenguaje y UI |
+| Koin | `moduloRecibo` (parser, reconocedor, store, sincronizador, casos de uso) |
+| Room KMP | Tablas `recibo` y `recibo_borrador` en `aguatacna.db` |
+| Supabase (Auth + PostgREST) | Tabla `recibo` con RLS |
+| kotlinx.serialization | Borrador en JSON y DTO `ReciboNube` |
+| Google ML Kit | OCR en Android |
+| FileKit · moko-permissions | Cámara y permiso |
 
 ---
 
-## 7. ¿Cómo se guardan los datos en la base de datos? (con cuenta / sin cuenta)
+## 7. ¿Cómo se guardan los datos? (con cuenta / sin cuenta)
 
-### 7.1 Base de datos
+### 7.1 Base de datos local
 
-- Motor: **SQLite** mediante **Room**, archivo **`aguatacna.db`**, clase `core/db/AguaTacnaDatabase` (versión **4**, 11 entidades compartidas por todos los módulos).
-- El módulo Recibo es dueño de **una tabla: `recibo`**.
+- **SQLite** con **Room**, archivo `aguatacna.db`, `core/db/AguaTacnaDatabase` **versión 5**.
+- Recibo es dueño de dos tablas:
+  - `recibo`: los recibos confirmados (id, anio, mes, consumoM3, importeCentimos, fechas, tipoConsumo, lecturas, numeroMedidor, numeroRecibo, origen).
+  - `recibo_borrador`: una sola fila `id = 1` con el borrador en revisión como JSON.
 
-### 7.2 Esquema de la tabla `recibo`
+### 7.2 Proceso de guardado
 
-| Columna | Tipo | Nota |
+1. El OCR, el ingreso manual o "Modificar" dejan un `ReciboBorrador` en `BorradorReciboStore`, que lo copia a `recibo_borrador`.
+2. Las correcciones pasan por `CorregirCampoUseCase`.
+3. Al pulsar **Confirmar**, `RevisionViewModel` llama a `ConfirmarReciboUseCase(borrador)`:
+   - `Incompleto` si falta período, consumo o importe;
+   - `Duplicado` si otro recibo (con otro id) ocupa ese mes;
+   - si no, guarda con `idRecibo` (edición) o con un id nuevo `recibo-<uuid>`.
+4. `ReciboRepositoryRoom.guardar()` hace upsert.
+5. Room emite; resumen e historial se recalculan solos.
+6. Se limpia el borrador (también de `recibo_borrador`).
+
+### 7.3 Con cuenta (Google) y sin cuenta
+
+| | **SIN_CUENTA** | **GOOGLE** |
 |---|---|---|
-| `id` | TEXT **PK** | `"recibo-{anio}-{mes}"` (ej. `recibo-2026-8`) |
-| `anio` | INTEGER | período de **consumo** (no de facturación) |
-| `mes` | INTEGER | 1–12 |
-| `consumoM3` | INTEGER | m³ facturados |
-| `importeCentimos` | INTEGER | S/ 74,20 → `7420` |
-| `fechaEmision` | TEXT? | ISO `2026-08-28` |
-| `fechaVencimiento` | TEXT? | ISO |
-| `tipoConsumo` | TEXT | `LECTURA` / `PROMEDIO` / `DESCONOCIDO` |
-| `lecturaAnteriorM3` | INTEGER? | |
-| `lecturaActualM3` | INTEGER? | |
-| `numeroMedidor` | TEXT? | |
-| `numeroRecibo` | TEXT? | |
-| `origen` | TEXT | `ESCANEADO` / `MANUAL` |
+| Dónde se guarda | Tabla `recibo` del teléfono | Tabla `recibo` del teléfono **y** tabla `public.recibo` de Supabase |
+| Cuándo se sincroniza | Nunca | Al abrir la pestaña Recibo, al iniciar sesión y 2 s después de cada cambio (`debounce`) |
+| Qué baja de la nube | — | Recibos cuyo `id` **y** período no existen en el teléfono |
+| Qué sube | — | Todos los recibos del teléfono (upsert; en un conflicto gana el teléfono) |
+| Borrados | — | No se propagan (esta versión solo suma) |
+| Cambio de teléfono | Se pierden los recibos | Se restauran al entrar con la misma cuenta |
+| Sin red | — | `sincronizar()` devuelve `false` y se reintenta con el próximo cambio |
 
-No hay columna de usuario, nombre, DNI, dirección ni foto.
-
-### 7.3 Proceso de guardado paso a paso
-
-1. El OCR o el ingreso manual producen un **`ReciboBorrador`** que vive **solo en memoria** (`BorradorReciboStore`, un `MutableStateFlow`). Si se cierra la app antes de confirmar, se pierde.
-2. Las correcciones actualizan ese borrador (`CorregirCampoUseCase`).
-3. Al pulsar **Confirmar**, `RevisionViewModel.confirmar()`:
-   - verifica `esConfirmable` (consumo + importe);
-   - consulta `repository.obtenerPorPeriodo(periodo)` → si ya existe, muestra el aviso de duplicado y **no guarda**;
-   - crea el `id` y llama a `ReciboBorrador.confirmar(id)` → `Recibo` (completa valores por defecto si faltan: vencimiento = día 11 del mes siguiente, emisión = día 28 del mes);
-   - llama a `ConfirmarReciboUseCase(recibo)`.
-4. `ReciboRepositoryRoom.guardar()` busca por (`anio`, `mes`); si existe reutiliza su `id` (**upsert por período**) → `recibo.toEntity()` → `ReciboDao.guardar()` (`@Upsert`).
-5. Room emite de nuevo `observarTodos()` → los `Flow` de `ObservarResumenUseCase` y `ObservarHistorialUseCase` se recalculan → la UI se actualiza sola.
-6. Se limpia el borrador y se vuelve a la pantalla principal.
-
-### 7.4 Con cuenta (Google) y sin cuenta (invitado)
-
-La app pregunta al inicio (`BienvenidaScreen` / `PuertaDeAcceso`) cómo entrar y lo guarda en la tabla `usuario` como `ModoDeAcceso`:
-
-| | **SIN_CUENTA** (modo invitado) | **GOOGLE** (con cuenta) |
-|---|---|---|
-| Identidad | UUID local creado al instalar (`IdentidadLocal`) | El mismo UUID local + sesión de Supabase Auth con Google |
-| ¿Dónde se guarda el recibo? | Tabla `recibo` en `aguatacna.db` (teléfono) | **Exactamente igual**: tabla `recibo` en el teléfono |
-| ¿Se sube a la nube? | No | **No.** Solo el módulo **Reserva** tiene sincronizador (`SincronizadorReserva` → tablas `perfil_hogar`, `evento_llenado`, `novedad_reserva`) y **Sector** lee/escribe `sector`, `cronograma`, `punto_cisterna`, `confirmacion_horario`. No existe tabla `recibo` en `supabase/migrations/` ni clase de sincronización en `feature/recibo`. |
-| ¿Qué pasa si cambia de teléfono o desinstala? | Se pierden los recibos | También se pierden los recibos |
-
-**Conclusión:** hoy el módulo Recibo se comporta **idéntico con y sin cuenta**: es 100 % local (offline-first). Para que "con cuenta" tenga efecto habría que: añadir `usuario_id` a la entidad, crear la tabla `recibo` en Supabase con política RLS por usuario y un `SincronizadorRecibo` como el de Reserva.
+La tabla de Supabase usa la clave `(usuario_id, id)`, no el período, para que al mover un recibo de mes se actualice la misma fila.
 
 ```mermaid
 flowchart LR
-    A[Usuario confirma recibo] --> B[RevisionViewModel.confirmar]
+    A[Usuario confirma] --> B[RevisionViewModel]
     B --> C[ConfirmarReciboUseCase]
-    C --> D[ReciboRepositoryRoom.guardar]
-    D --> E[(SQLite aguatacna.db<br/>tabla recibo)]
+    C --> D[ReciboRepositoryRoom]
+    D --> E[(aguatacna.db<br/>recibo)]
     E -. Flow .-> F[ObservarResumen / ObservarHistorial]
-    F -. StateFlow .-> G[UI se actualiza]
-    subgraph Modo de acceso
-      S1[SIN_CUENTA] --> E
-      S2[GOOGLE] --> E
-    end
-    E -. NO se sincroniza .-x N[(Supabase)]
+    F -. StateFlow .-> G[UI]
+    E -. observarTodos + debounce .-> S[SincronizadorRecibo]
+    S -->|solo con sesión Google| N[NubeReciboSupabase]
+    N <-->|upsert / select con RLS| SUP[(Supabase<br/>public.recibo)]
+    BS[BorradorReciboStore] <--> RB[(recibo_borrador)]
 ```
 
 ---
 
 ## 8. Flujo del módulo
 
-Navegación interna de `ReciboScreen` (no usa NavHost; usa una variable `subPantalla`):
-
 ```
 principal ──Escanear──────────► camara ──OCR ok──► foto (revisión) ──Confirmar──► principal
     │                             │                    │  ▲
-    │                             └─Error / Manual─┐   │  │
-    ├──Ingresar manual──► foto ◄──────────────────-┘   │  │
-    │                                                  ▼  │
-    ├──Revisar lectura──► foto         manualMedidor (corregir campo)
-    │
+    │                             └─Error / Manual─► manualMedidor
+    ├──Ingresar manual──► foto                        │  │
+    ├──Revisar lectura──► foto          manualMedidor (corregir campo)
     └──Ver historial────► historial ──Modificar mes──► foto
 ```
 
-Al tocar el ícono **Recibo** de la barra inferior estando en una sub-pantalla, `resetTrigger` devuelve a `principal`.
+Al tocar el ícono **Recibo** de la barra inferior desde una sub-pantalla, `resetTrigger` vuelve a `principal`.
 
 ---
 
@@ -339,102 +320,93 @@ Al tocar el ícono **Recibo** de la barra inferior estando en una sub-pantalla, 
 
 ```mermaid
 flowchart TD
-    Inicio([Usuario abre pestaña Recibo]) --> Obs[ReciboViewModel observa Room]
+    Inicio([Usuario abre Recibo]) --> Sync[ReciboViewModel inicia la sincronización]
+    Sync --> Obs[Observa Room]
     Obs --> HayDatos{¿Hay recibos?}
-    HayDatos -- No --> Vacio[Mostrar Escanea tu recibo]
-    HayDatos -- Sí --> Resumen[Mostrar último recibo, consumo y estado]
+    HayDatos -- No --> Vacio[Escanea tu recibo]
+    HayDatos -- Sí --> Resumen[Último recibo, consumo y estado]
     Vacio --> Accion{¿Qué elige?}
     Resumen --> Accion
 
     Accion -- Escanear --> Permiso{¿Permiso de cámara?}
-    Permiso -- Denegado --> PermMsg[Pantalla de permiso / abrir ajustes] --> Accion
+    Permiso -- Denegado --> PermMsg[TarjetaAvisoCamara] --> Accion
     Permiso -- Concedido --> Foto[Tomar foto]
-    Foto -- Cancelado --> Accion
-    Foto --> OCR[ML Kit reconoce texto]
-    OCR --> TextoVacio{¿Texto vacío?}
-    TextoVacio -- Sí --> Err[Error: mejor iluminación]
-    TextoVacio -- No --> Parser[ParserReciboEpsTacna extrae campos]
-    Parser --> Legible{¿Hay consumo o importe?}
-    Legible -- No --> Err
+    Foto --> OCR{¿Plataforma?}
+    OCR -- iOS --> Err
+    OCR -- Android --> MLKit[ML Kit reconoce texto]
+    MLKit --> Parser[Parser: texto plano + filas]
+    Parser --> Legible{¿Consumo o importe?}
+    Legible -- No --> Err[No pudimos leer tu recibo]
     Err --> Reint{¿Reintentar o manual?}
     Reint -- Reintentar --> Foto
-    Reint -- Manual --> Borrador
-    Legible -- Sí --> Borrador[ReciboBorrador en memoria<br/>foto descartada]
+    Reint -- Manual --> Nuevo[Borrador vacío del mes actual]
+    Legible -- Sí --> Borrador[(Borrador en store + recibo_borrador)]
+    Nuevo --> Borrador
 
-    Accion -- Ingresar manual --> Borrador
+    Accion -- Ingresar manual --> Nuevo
     Accion -- Historial --> Hist[Gráfico 6 meses]
-    Hist -- Modificar mes --> Borrador
-    Hist -- Cómo reclamar --> Dialogo[Pasos de reclamo Sunass]
+    Hist -- Modificar mes --> Editar[Borrador con idRecibo] --> Borrador
 
-    Borrador --> Revision[Pantalla Revisa tu recibo]
-    Revision --> Dudoso{¿Campos dudosos o faltantes?}
-    Dudoso -- Sí --> Corregir[Corregir campo con teclado]
-    Corregir --> Revision
-    Dudoso -- No --> Confirm{¿Consumo e importe presentes?}
-    Confirm -- No --> Corregir
-    Confirm -- Sí --> Dup{¿Ya existe ese período?}
-    Dup -- Sí --> AvisoDup[Aviso de duplicado] --> Revision
-    Dup -- No --> Guardar[(Guardar en tabla recibo)]
-    Guardar --> Eval[Recalcular estado: Normal / Alto consumo / Por promedio]
-    Eval --> Resumen
+    Borrador --> Revision[Revisa tu recibo + advertencias]
+    Revision --> Corregir[CorregirCampoUseCase] --> Revision
+    Revision --> Confirmar[ConfirmarReciboUseCase]
+    Confirmar -- Incompleto --> Revision
+    Confirmar -- Duplicado --> AvisoDup[Aviso de duplicado] --> Revision
+    Confirmar -- Guardado --> Guardar[(recibo)]
+    Guardar --> Eval{¿Más de 100 m³?}
+    Eval -- Sí --> Alto[Alto consumo: revisa fugas]
+    Eval -- No --> Normal[Normal / Registro / Por promedio]
+    Alto --> Resumen
+    Normal --> Resumen
 ```
 
 ---
 
 ## 10. Diagramas de secuencia
 
-### 10.1 Escanear recibo (OCR) y confirmar
+### 10.1 Escanear y confirmar
 
 ```mermaid
 sequenceDiagram
     actor U as Usuario
-    participant RS as ReciboScreen
     participant CS as CamaraReciboScreen
-    participant CF as capturaFoto (FileKit + moko)
     participant CVM as CapturaViewModel
     participant EUC as EscanearReciboUseCase
-    participant OCR as ReconocedorTextoAndroid (ML Kit)
+    participant OCR as ReconocedorTexto
     participant P as ParserReciboEpsTacna
     participant BS as BorradorReciboStore
+    participant BD as ReciboBorradorDao
     participant FS as ReciboFotoScreen
     participant RVM as RevisionViewModel
     participant CUC as ConfirmarReciboUseCase
     participant REP as ReciboRepositoryRoom
-    participant DAO as ReciboDao
-    participant DB as SQLite (tabla recibo)
 
-    U->>RS: Toca "Escanear recibo"
-    RS->>CS: subPantalla = "camara"
-    CS->>CVM: reiniciar()
-    CS->>CF: tomarFoto()
-    CF-->>U: Pide permiso y abre cámara
-    U-->>CF: Toma la foto
-    CF->>CVM: onFotoCapturada(bytes)
-    CVM->>CVM: estado = Procesando
-    CVM->>EUC: invoke(bytes) en Dispatchers.Default
+    U->>CS: Toma la foto
+    CS->>CVM: onFotoCapturada(bytes)
+    CVM->>EUC: invoke(bytes)
     EUC->>OCR: reconocer(bytes)
-    OCR-->>EUC: Result TextoReconocido
+    OCR-->>EUC: TextoReconocido (texto + líneas)
     EUC->>P: parsear(texto)
-    P-->>EUC: ResultadoParseo.Exito(borrador)
-    EUC-->>CVM: Result.success(borrador)
+    P->>P: extraer(textoPlano) y extraer(reconstruirFilas(lineas))
+    P-->>EUC: Exito(borrador)
+    EUC-->>CVM: Result.success
     CVM->>BS: guardar(borrador)
-    CVM->>CVM: liberarFoto() y estado = Exito
-    CS->>RS: onReciboDetectado → subPantalla = "foto"
-    RS->>FS: mostrar revisión
-    FS->>RVM: observa borrador
-    U->>FS: Pulsa Confirmar
-    FS->>RVM: confirmar(onCompletado)
-    RVM->>REP: obtenerPorPeriodo(periodo)
-    REP->>DAO: buscarPorPeriodo(anio, mes)
-    DAO-->>RVM: null (no existe)
-    RVM->>RVM: borrador.confirmar(id) → Recibo
-    RVM->>CUC: invoke(recibo)
-    CUC->>REP: guardar(recibo)
-    REP->>DAO: guardar(recibo.toEntity())
-    DAO->>DB: UPSERT
-    DB-->>REP: Flow emite lista nueva
-    RVM->>BS: limpiar()
-    RVM-->>RS: onCompletado → "principal"
+    BS->>BD: guardar(JSON)
+    CS->>FS: subPantalla = "foto"
+    FS->>RVM: observa borrador y advertencias
+    U->>FS: Confirmar
+    FS->>RVM: confirmar()
+    RVM->>CUC: invoke(borrador)
+    CUC->>REP: obtenerPorPeriodo(periodo)
+    alt otro recibo en ese mes
+        CUC-->>RVM: Duplicado(periodo)
+        RVM-->>FS: errorDuplicado
+    else libre o es el mismo recibo
+        CUC->>REP: guardar(borrador.confirmar(id))
+        CUC-->>RVM: Guardado(recibo, reemplazo)
+        RVM->>BS: limpiar()
+        BS->>BD: borrar()
+    end
 ```
 
 ### 10.2 Corrección manual de un campo
@@ -442,25 +414,28 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor U as Usuario
-    participant FS as ReciboFotoScreen
-    participant RS as ReciboScreen
     participant MS as ReciboManualMedidorScreen
+    participant CoVM as CorreccionViewModel
     participant CC as CorregirCampoUseCase
     participant BS as BorradorReciboStore
 
-    U->>FS: Toca la fila "Consumo"
-    FS->>RS: onCorregirCampo(CONSUMO_M3)
-    RS->>MS: subPantalla = "manualMedidor"
-    MS->>BS: lee borrador.value
-    U->>MS: Escribe dígitos y pulsa Guardar
-    MS->>MS: valida (ej. lectura actual ≥ anterior)
-    MS->>CC: invoke(borrador, CampoEditable.ConsumoM3(n))
-    CC-->>MS: borrador con confianza 1.0 y corregidoPorUsuario
-    MS->>BS: guardar(nuevo)
-    MS->>RS: onVolver → "foto"
+    MS->>CoVM: valorInicial(campo)
+    U->>MS: Pulsa teclas
+    MS->>MS: entrada = aplicarTecla(...)
+    U->>MS: Guardar corrección
+    MS->>CoVM: guardar(campo, entrada, periodo)
+    CoVM->>CC: invoke(borrador, CampoEditable)
+    alt Invalida
+        CC-->>CoVM: Invalida(mensaje)
+        CoVM-->>MS: mensaje de error
+    else Aplicada
+        CC-->>CoVM: Aplicada(borrador)
+        CoVM->>BS: guardar(borrador)
+        CoVM-->>MS: null → volver
+    end
 ```
 
-### 10.3 Ver historial
+### 10.3 Ver historial y modificar un mes
 
 ```mermaid
 sequenceDiagram
@@ -469,113 +444,118 @@ sequenceDiagram
     participant HVM as HistorialViewModel
     participant OH as ObservarHistorialUseCase
     participant EV as EvaluadorConsumo
-    participant REP as ReciboRepositoryRoom
-    participant DB as SQLite
+    participant REP as ReciboRepository
+    participant BS as BorradorReciboStore
 
-    U->>HS: Toca "Ver historial"
     HS->>HVM: collect uiState
     HVM->>OH: invoke()
     OH->>REP: observarRecibos()
-    REP->>DB: SELECT * FROM recibo ORDER BY anio, mes DESC
-    DB-->>OH: List Recibo
-    loop cada mes de la ventana de 6
-        OH->>EV: evaluar(consumo, mesesPrevios, tipo)
-        EV-->>OH: EstadoConsumo
+    loop 6 meses que terminan en el último recibo
+        OH->>EV: evaluar(consumo, previos, tipo, mes)
     end
     OH-->>HVM: HistorialCompleto
-    HVM-->>HS: HistorialUiState.ConDatos
-    U->>HS: Selecciona un mes
-    HS->>HVM: seleccionarMes(periodo)
-    HVM-->>HS: nuevo estado con detalle del mes
+    U->>HS: Modificar factura
+    HS->>HVM: prepararEdicion(periodo, onListo)
+    HVM->>REP: obtenerPorPeriodo(periodo)
+    HVM->>BS: guardar(recibo.aBorrador() o vacio(periodo))
+    HVM-->>HS: onListo → "foto"
+```
+
+### 10.4 Sincronización con la cuenta
+
+```mermaid
+sequenceDiagram
+    participant RVM as ReciboViewModel
+    participant S as SincronizadorRecibo
+    participant DAO as ReciboDao
+    participant N as NubeReciboSupabase
+    participant SUP as Supabase
+
+    RVM->>S: mantenerSincronizado()
+    loop cada cambio de sesión o de recibos (debounce 2 s)
+        S->>N: descargar()
+        N->>SUP: select recibo (RLS)
+        SUP-->>N: filas del usuario
+        N-->>S: remotos (o null sin sesión)
+        S->>DAO: guardar(remotos cuyo id y período no existen)
+        S->>N: subir(locales)
+        N->>SUP: upsert con usuario_id
+    end
 ```
 
 ---
 
 ## 11. Diagramas C4
 
-> **C1 y C2** muestran **toda la aplicación AguaTacna**. **C3 y C4** muestran **solo el módulo Recibo**.
+> **C1 y C2** muestran toda la aplicación. **C3 y C4** solo el módulo Recibo.
 
-### 11.1 C1 — Contexto del sistema (toda la app)
+### 11.1 C1 — Contexto del sistema
 
 ```mermaid
 flowchart TB
-    Hogar["👤 Usuario / Hogar de Tacna<br/>[Persona]<br/>Gestiona su reserva de agua, su sector y su recibo"]
-
-    App["📱 AguaTacna<br/>[Sistema de software]<br/>App móvil Android/iOS: reserva de agua, cortes por sector,<br/>recibo con OCR, retos de ahorro y asistente"]
-
-    Supa["☁️ Supabase<br/>[Sistema externo]<br/>Auth + PostgreSQL con RLS por usuario"]
-    Google["🔑 Google Identity<br/>[Sistema externo]<br/>Inicio de sesión con Google"]
-    N8n["🤖 n8n<br/>[Sistema externo]<br/>Webhook del asistente hídrico con IA"]
-    Recibo["🧾 Recibo impreso EPS Tacna<br/>[Documento físico]<br/>Fuente de consumo e importe"]
-    Sunass["⚖️ Sunass / EPS Tacna<br/>[Entidades]<br/>Reglas de consumo atípico y reclamos"]
+    Hogar["👤 Usuario / Hogar de Tacna<br/>[Persona]"]
+    App["📱 AguaTacna<br/>[Sistema]<br/>Reserva, sector, recibo con OCR, retos y asistente"]
+    Supa["☁️ Supabase<br/>[Sistema externo]<br/>Auth + PostgreSQL con RLS<br/>(incluye la tabla recibo)"]
+    Google["🔑 Google Identity"]
+    N8n["🤖 n8n<br/>Asistente con IA"]
+    Recibo["🧾 Recibo impreso EPS Tacna"]
 
     Hogar -->|Usa| App
     Hogar -->|Fotografía| Recibo
     Recibo -->|Cámara + OCR| App
-    App -->|Sincroniza reserva y sector - HTTPS| Supa
+    App -->|Sincroniza reserva, sector y recibos - HTTPS| Supa
     App -->|Autentica - opcional| Google
     Google -->|Token| Supa
     App -->|Preguntas - HTTPS| N8n
-    Sunass -.->|Normativa aplicada en la lógica| App
 ```
 
-### 11.2 C2 — Contenedores (toda la app)
+### 11.2 C2 — Contenedores
 
 ```mermaid
 flowchart TB
     User["👤 Usuario"]
-
-    subgraph Dispositivo["📱 Teléfono del usuario"]
-        direction TB
-        Android["androidApp<br/>[Contenedor: Android / Kotlin]<br/>AguaTacnaApp, MainActivity,<br/>WorkManager, notificaciones"]
-        IOS["iosApp<br/>[Contenedor: Swift / Xcode]<br/>Host iOS"]
-
+    subgraph Dispositivo["📱 Teléfono"]
+        Android["androidApp"]
+        IOS["iosApp"]
         subgraph Shared["shared — Kotlin Multiplatform"]
-            direction TB
-            UI["UI Compose Multiplatform<br/>AppNavegacion + BarraInferior<br/>PuertaDeAcceso / Bienvenida"]
+            UI["UI Compose + navegación"]
             subgraph Features["feature/"]
-                FRes["reserva<br/>(Cristhian)"]
-                FSec["sector<br/>(Dayan)"]
-                FRec["recibo<br/>(Iker)"]
-                FRet["retos / Ahorro<br/>(Jimmy)"]
-                FAsi["asistente<br/>(Iker)"]
+                FRes["reserva"]
+                FSec["sector"]
+                FRec["recibo"]
+                FRet["retos"]
+                FAsi["asistente"]
             end
-            Core["core/<br/>DI Koin · Sesión · Nube · Util cámara · Tema"]
+            Core["core/ (DI, sesión, nube, util, tema)"]
         end
-
-        DB[("aguatacna.db<br/>[SQLite / Room v4]<br/>usuario, perfil_hogar, evento_llenado,<br/>novedad_reserva, aviso_reserva, sector,<br/>cronograma, punto_cisterna,<br/>confirmacion_horario, recibo, reto")]
-        MLKit["Google ML Kit<br/>[Librería on-device]<br/>OCR"]
+        DB[("aguatacna.db · Room v5<br/>usuario, perfil_hogar, evento_llenado,<br/>novedad_reserva, aviso_reserva, sector,<br/>cronograma, punto_cisterna,<br/>confirmacion_horario, recibo,<br/>recibo_borrador, reto")]
+        MLKit["Google ML Kit (solo Android)"]
     end
-
-    Supa[("☁️ Supabase<br/>Auth + PostgREST<br/>perfil_hogar, evento_llenado, novedad_reserva,<br/>sector, cronograma, punto_cisterna, confirmacion_horario")]
+    Supa[("☁️ Supabase<br/>perfil_hogar, evento_llenado, novedad_reserva,<br/>sector, cronograma, punto_cisterna,<br/>confirmacion_horario, recibo")]
     Google["🔑 Google Sign-In"]
-    N8n["🤖 n8n Webhook"]
+    N8n["🤖 n8n"]
 
-    User --> Android
-    User --> IOS
+    User --> Android & IOS
     Android --> Shared
     IOS --> Shared
     UI --> Features
     Features --> Core
-    FRes --> DB
-    FSec --> DB
-    FRec --> DB
-    FRet --> DB
-    Core --> DB
+    FRes & FSec & FRec & FRet --> DB
     FRec --> MLKit
     FRes -->|SincronizadorReserva| Supa
     FSec -->|NubeSectorSupabase| Supa
+    FRec -->|SincronizadorRecibo| Supa
     Core -->|InicioConGoogle| Google
     Google --> Supa
-    FAsi -->|Ktor HTTP| N8n
+    FAsi -->|Ktor| N8n
 ```
 
-### 11.3 C3 — Componentes (solo módulo Recibo)
+### 11.3 C3 — Componentes (módulo Recibo)
 
 ```mermaid
 flowchart TB
-    subgraph PRES["Presentación (MVVM)"]
-        RS["ReciboScreen<br/>enrutador subPantalla"]
+    subgraph PRES["Presentación"]
+        RS["ReciboScreen"]
         CS["CamaraReciboScreen"]
         FS["ReciboFotoScreen"]
         MS["ReciboManualMedidorScreen"]
@@ -584,70 +564,62 @@ flowchart TB
         CVM["CapturaViewModel"]
         REVM["RevisionViewModel"]
         HVM["HistorialViewModel"]
+        COVM["CorreccionViewModel"]
     end
 
-    subgraph DOM["Dominio (Kotlin puro)"]
+    subgraph DOM["Dominio"]
         UCE["EscanearReciboUseCase"]
-        UCC["CorregirCampoUseCase"]
-        UCF["ConfirmarReciboUseCase"]
+        UCC["CorregirCampoUseCase<br/>→ ResultadoCorreccion"]
+        UCF["ConfirmarReciboUseCase<br/>→ ResultadoConfirmacion"]
         UCR["ObservarResumenUseCase"]
         UCH["ObservarHistorialUseCase"]
-        EV["EvaluadorConsumo"]
-        VAL["ValidadorRecibo<br/>(no usado en la UI)"]
+        EV["EvaluadorConsumo<br/>(LIMITE_M3 = 100)"]
+        VAL["ValidadorRecibo"]
         PORT1["«puerto» ReconocedorTexto"]
         PORT2["«puerto» ParserRecibo"]
         REPO["«interfaz» ReciboRepository"]
-        MOD["Modelos: Recibo, ReciboBorrador,<br/>Dinero, PeriodoConsumo, Campo, EstadoConsumo"]
     end
 
     subgraph DATA["Datos"]
-        STORE["BorradorReciboStore<br/>(memoria)"]
+        STORE["BorradorReciboStore"]
         ROOM["ReciboRepositoryRoom"]
-        FAKE["FakeReciboRepository"]
         DAO["ReciboDao"]
-        ENT["ReciboEntity"]
+        BDAO["ReciboBorradorDao"]
+        SYNC["SincronizadorRecibo"]
+        NUBE["NubeReciboSupabase"]
     end
 
     subgraph INFRA["Infraestructura"]
-        PARSER["ParserReciboEpsTacna<br/>(regex EPS Tacna)"]
-        MLK["ReconocedorTextoAndroid<br/>(androidMain, ML Kit)"]
+        PARSER["ParserReciboEpsTacna<br/>+ reconstruirFilas"]
+        OCRA["ReconocedorTextoAndroid"]
+        OCRI["ReconocedorTexto iOS<br/>(pide ingreso manual)"]
     end
-
-    DI["di/ReciboModule (Koin)"]
-    CAM["core/util/capturaFoto"]
-    DBX[("aguatacna.db · tabla recibo")]
 
     RS --> CS & FS & MS & HS
     RS --> RVM
     CS --> CVM
-    CS --> CAM
     FS --> REVM
     HS --> HVM
-    MS --> UCC
-    MS --> STORE
-    RVM --> UCR
-    CVM --> UCE
-    CVM --> STORE
-    REVM --> STORE
-    REVM --> UCF
-    REVM --> REPO
-    HVM --> UCH
-    UCE --> PORT1
-    UCE --> PORT2
-    UCR --> REPO
-    UCH --> REPO
-    UCH --> EV
-    UCF --> REPO
-    PORT1 -.implementa.- MLK
-    PORT2 -.implementa.- PARSER
-    REPO -.implementa.- ROOM
-    REPO -.implementa.- FAKE
-    ROOM --> DAO --> DBX
-    DAO --> ENT
-    DI -.provee.-> ROOM & STORE & UCE & UCF & UCC & UCR & UCH
+    MS --> COVM
+    RVM --> UCR & STORE & SYNC
+    CVM --> UCE & STORE
+    REVM --> UCF & VAL & STORE
+    HVM --> UCH & REPO & STORE
+    COVM --> UCC & STORE
+    UCE --> PORT1 & PORT2
+    UCR & UCH --> EV
+    UCR & UCH & UCF --> REPO
+    PORT1 -.- OCRA
+    PORT1 -.- OCRI
+    PORT2 -.- PARSER
+    REPO -.- ROOM
+    ROOM --> DAO
+    STORE --> BDAO
+    SYNC --> DAO
+    SYNC --> NUBE
 ```
 
-### 11.4 C4 — Código (solo módulo Recibo)
+### 11.4 C4 — Código (módulo Recibo)
 
 ```mermaid
 classDiagram
@@ -655,194 +627,157 @@ classDiagram
 
     class ReconocedorTexto {
         <<interface>>
-        +reconocer(bytesImagen: ByteArray) Result~TextoReconocido~
-    }
-    class ReconocedorTextoAndroid {
-        -recognizer: TextRecognizer
-        +reconocer(bytesImagen) Result~TextoReconocido~
+        +reconocer(bytes) Result~TextoReconocido~
     }
     class ParserRecibo {
         <<interface>>
-        +parsear(texto: TextoReconocido) ResultadoParseo
-        +parsearTexto(texto: String) ResultadoParseo
+        +parsear(texto) ResultadoParseo
+        +parsearTexto(texto) ResultadoParseo
     }
     class ParserReciboEpsTacna {
         <<object>>
         +normalizar(texto) String
-        -extraerPeriodoConsumo() Campo
-        -extraerConsumoM3() Campo
-        -extraerImporteTotal() Campo
-        -extraerTipoConsumo() Campo
-        -extraerFechaEmision() Campo
-        -extraerFechaVencimiento() Campo
-        -extraerLecturaAnterior() Campo
-        -extraerLecturaActual() Campo
-        -extraerNumeroMedidor() Campo
-        -extraerNumeroRecibo() Campo
+        -extraer(texto) ReciboBorrador
+        -combinar(plano, filas) ReciboBorrador
+        -buscarEntero() Campo
+        -buscarTexto() Campo
+        -buscarFecha() Campo
     }
     class EscanearReciboUseCase {
-        +invoke(bytes: ByteArray) Result~ReciboBorrador~
-    }
-    class CorregirCampoUseCase {
-        +invoke(borrador, campo: CampoEditable) ReciboBorrador
+        +invoke(bytes) Result~ReciboBorrador~
     }
     class ConfirmarReciboUseCase {
-        +invoke(recibo: Recibo) Boolean
+        +invoke(borrador) ResultadoConfirmacion
     }
-    class ObservarResumenUseCase {
-        +invoke() Flow~ResumenRecibo?~
+    class ResultadoConfirmacion {
+        <<sealed>>
+        Guardado(recibo, reemplazo)
+        Duplicado(periodo)
+        Incompleto
     }
-    class ObservarHistorialUseCase {
-        +invoke() Flow~HistorialCompleto?~
+    class CorregirCampoUseCase {
+        +invoke(borrador, campo) ResultadoCorreccion
+    }
+    class ResultadoCorreccion {
+        <<sealed>>
+        Aplicada(borrador)
+        Invalida(mensaje)
     }
     class EvaluadorConsumo {
         <<object>>
+        +LIMITE_M3 = 100
+        +promedio(previos) Int?
+        +variacionPorcentaje(consumo, promedio) Int?
         +evaluar(consumo, previos, tipo, mes) EstadoConsumo
-        +calcularMetricas(consumo, previos) Metricas
     }
     class ValidadorRecibo {
         <<object>>
-        +validar(recibo) List~Advertencia~
+        +validar(borrador) List~Advertencia~
     }
     class ReciboRepository {
         <<interface>>
-        +observarRecibos() Flow~List~Recibo~~
+        +observarRecibos()
         +guardar(recibo)
-        +obtenerPorPeriodo(periodo) Recibo?
+        +obtenerPorPeriodo(periodo)
         +eliminar(id)
     }
-    class ReciboRepositoryRoom {
-        -dao: ReciboDao
-    }
-    class FakeReciboRepository
-    class ReciboDao {
+    class ReciboBorradorDao {
         <<interface>>
-        +observarTodos() Flow~List~ReciboEntity~~
-        +buscarPorPeriodo(anio, mes) ReciboEntity?
+        +obtener() ReciboBorradorEntity?
         +guardar(entity)
-        +borrarPorId(id)
-    }
-    class ReciboEntity {
-        +id: String PK
-        +anio: Int
-        +mes: Int
-        +consumoM3: Int
-        +importeCentimos: Long
-        +tipoConsumo: String
-        +origen: String
-        +toDomain() Recibo
+        +borrar()
     }
     class BorradorReciboStore {
-        +borrador: StateFlow~ReciboBorrador?~
-        +guardar(nuevo)
+        +borrador: StateFlow
+        +asegurar(crear)
+        +guardar(b)
         +limpiar()
-        +actualizar(transform)
     }
-    class Recibo {
-        +id: String
-        +periodoConsumo: PeriodoConsumo
-        +consumoM3: Int
-        +importeTotal: Dinero
-        +tipoConsumo: TipoConsumo
-        +origen: OrigenDatos
-        +aBorrador() ReciboBorrador
+    class NubeRecibo {
+        <<interface>>
+        +descargar() List~ReciboEntity~?
+        +subir(recibos)
     }
+    class SincronizadorRecibo {
+        +sincronizar() Boolean
+        +mantenerSincronizado()
+    }
+    class NubeReciboSupabase
     class ReciboBorrador {
-        +periodoConsumo: Campo
-        +consumoM3: Campo
-        +importeTotal: Campo
+        +idRecibo: String?
         +esConfirmable: Boolean
-        +tieneCamposDudosos: Boolean
         +confirmar(id) Recibo
+        +vacio(periodo)$ ReciboBorrador
     }
-    class Campo~T~ {
-        +valor: T?
-        +confianza: Float
-        +corregidoPorUsuario: Boolean
-        +esDudoso: Boolean
-    }
-    class Dinero {
-        +centimos: Long
-        +formatear() String
-        +parsear(texto)$ Dinero?
-    }
-    class PeriodoConsumo {
-        +anio: Int
-        +mes: Int
-        +anterior() PeriodoConsumo
-        +siguiente() PeriodoConsumo
-        +parsear(texto)$ PeriodoConsumo?
-    }
-    class EstadoConsumo {
-        <<sealed>>
-        Atipico
-        Normal
-        SinHistorial
-        FacturadoPorPromedio
-    }
-    class CapturaViewModel {
-        +uiState: StateFlow~CapturaUiState~
-        +onFotoCapturada(bytes)
-        +reiniciar()
+    class CorreccionViewModel {
+        +valorInicial(campo) String
+        +guardar(campo, entrada, periodo) String?
     }
     class RevisionViewModel {
-        +borrador: StateFlow
+        +advertencias: StateFlow
         +errorDuplicado: StateFlow
         +confirmar(onCompletado)
-        +guardarBorrador(b)
-        +descartar()
-    }
-    class ReciboViewModel {
-        +uiState: StateFlow~ReciboUiState~
     }
     class HistorialViewModel {
-        +uiState: StateFlow~HistorialUiState~
         +seleccionarMes(p)
-        +mostrarDialogoReclamo(b)
+        +prepararEdicion(p, onListo)
+    }
+    class ReciboViewModel {
+        +iniciarManual()
+        +prepararRevision(recibo)
     }
 
-    ReconocedorTexto <|.. ReconocedorTextoAndroid
     ParserRecibo <|.. ParserReciboEpsTacna
     ReciboRepository <|.. ReciboRepositoryRoom
     ReciboRepository <|.. FakeReciboRepository
-    ReciboRepositoryRoom --> ReciboDao
-    ReciboDao --> ReciboEntity
-    ReciboEntity ..> Recibo : toDomain / toEntity
+    NubeRecibo <|.. NubeReciboSupabase
     EscanearReciboUseCase --> ReconocedorTexto
     EscanearReciboUseCase --> ParserRecibo
     ConfirmarReciboUseCase --> ReciboRepository
-    ObservarResumenUseCase --> ReciboRepository
-    ObservarHistorialUseCase --> ReciboRepository
-    ObservarHistorialUseCase --> EvaluadorConsumo
-    EvaluadorConsumo ..> EstadoConsumo
-    ValidadorRecibo ..> Recibo
-    ReciboBorrador --> Campo
-    ReciboBorrador ..> Recibo : confirmar
-    Recibo --> Dinero
-    Recibo --> PeriodoConsumo
-    CapturaViewModel --> EscanearReciboUseCase
-    CapturaViewModel --> BorradorReciboStore
-    RevisionViewModel --> BorradorReciboStore
+    ConfirmarReciboUseCase ..> ResultadoConfirmacion
+    CorregirCampoUseCase ..> ResultadoCorreccion
+    BorradorReciboStore --> ReciboBorradorDao
+    SincronizadorRecibo --> NubeRecibo
+    SincronizadorRecibo --> ReciboDao
     RevisionViewModel --> ConfirmarReciboUseCase
-    RevisionViewModel --> ReciboRepository
-    ReciboViewModel --> ObservarResumenUseCase
+    RevisionViewModel --> ValidadorRecibo
+    RevisionViewModel --> BorradorReciboStore
+    CorreccionViewModel --> CorregirCampoUseCase
+    CorreccionViewModel --> BorradorReciboStore
     HistorialViewModel --> ObservarHistorialUseCase
-    CorregirCampoUseCase ..> ReciboBorrador
+    HistorialViewModel --> BorradorReciboStore
+    ReciboViewModel --> ObservarResumenUseCase
+    ReciboViewModel --> SincronizadorRecibo
+    ObservarHistorialUseCase --> EvaluadorConsumo
+    ObservarResumenUseCase --> EvaluadorConsumo
+    ReciboBorrador ..> Recibo : confirmar
 ```
 
 ---
 
-## 12. Observaciones encontradas durante la revisión
+## 12. Observaciones
 
-Estos puntos no se corrigieron (la revisión fue de solo lectura). Se dejan anotados para que decidas qué hacer con ellos.
+### 12.1 Observaciones del informe anterior
 
-1. **"Modificar" un recibo existente no se puede guardar.** Desde Historial (`onModificarRecibo`) o "Revisar lectura" se carga un recibo ya guardado en el borrador, pero `RevisionViewModel.confirmar()` lo rechaza como **duplicado** porque ya existe ese período. El upsert de `ConfirmarReciboUseCase` / `ReciboRepositoryRoom` nunca llega a ejecutarse en ese caso.
-2. **El dominio depende de la infraestructura:** `EscanearReciboUseCase` importa `ParserReciboEpsTacna` como valor por defecto. Esto rompe la regla I de la constitución (domain puro).
-3. **Dos criterios distintos de "Alto consumo":** `EvaluadorConsumo` aplica la regla Sunass (> 100 % sobre el promedio), pero `ObservarResumenUseCase` y `ObservarHistorialUseCase` usan un umbral fijo de **> 100 m³**. El mensaje del chip habla de 100 m³.
-4. **Valores fijos en código:** `ReciboBorrador.confirmar()` usa `PeriodoConsumo(2026, 8)` si falta el período y `numeroMedidor = "0412887"` si falta el medidor; `ReciboFotoScreen` crea un borrador con agosto 2026 fijo.
-5. **`ValidadorRecibo` y `SemillaDepuracion` no se usan** fuera de las pruebas; las advertencias de coherencia no llegan al usuario.
-6. **Sin OCR en iOS:** `iosMain/feature/recibo` está vacío y no hay `ReconocedorTexto` registrado para iOS, así que escanear en iOS fallaría al inyectar `EscanearReciboUseCase`.
-7. **Sin sincronización en la nube** para recibos (ver sección 7.4), aunque el usuario entre con Google.
-8. **Límite de 150 líneas por archivo** (constitución, art. IV) superado por: `ReciboGeneralComponentes` (759), `ReciboHistorialComponentes` (553), `CamaraReciboScreen` (391), `ReciboFotoComponentes` (362), `ReciboManualComponentes` (361), `ReciboManualMedidorScreen` (266), `ReciboScreen` (261), `ParserReciboEpsTacna` (230), `ReciboFotoScreen` (230), `ReciboHistorialScreen` (183).
-9. **Parte de la lógica vive en la UI:** `ReciboScreen` y `ReciboManualMedidorScreen` obtienen dependencias directamente con `KoinPlatform.getKoin()` y hacen validaciones y lectura del repositorio en el composable (la constitución pide que eso lo haga el ViewModel).
-10. **El borrador vive solo en memoria:** si el sistema cierra la app durante la revisión, se pierden los datos leídos.
+| # | Observación | Estado |
+|---|---|---|
+| 1 | "Modificar" un recibo no se podía guardar | ✅ Corregida: `idRecibo` + `ResultadoConfirmacion` en el dominio |
+| 2 | El dominio dependía de la infraestructura | ✅ Corregida: el parser se inyecta por Koin |
+| 3 | Dos criterios de "Alto consumo" | ✅ Corregida: una sola regla (> 100 m³); se eliminó todo lo de reclamos ante Sunass |
+| 4 | Valores escritos a mano (agosto 2026, medidor 0412887, fechas inventadas) | ✅ Corregida: `ReciboBorrador.vacio`, `PeriodoConsumo.de` y `Reloj` inyectado |
+| 5 | `ValidadorRecibo` y `SemillaDepuracion` sin uso | ✅ Corregida: advertencias en la revisión; la semilla pasó a `commonTest/SemillaRecibos.kt` |
+| 6 | Sin OCR en iOS | ✅ Corregida: `expect/actual`; iOS pide el ingreso manual |
+| 7 | Sin sincronización con cuenta | ✅ Corregida: `SincronizadorRecibo` + tabla `recibo` en Supabase (falta aplicar la migración) |
+| 8 | Archivos de más de 150 líneas | ⏳ **Pendiente** (fuera de alcance). Hoy: `ReciboGeneralComponentes` 751, `ReciboFotoComponentes` 419, `ReciboHistorialComponentes` 397, `ReciboManualComponentes` 358, `CamaraReciboScreen` 329, `ReciboScreen` 214 (líneas totales, con imports) |
+| 9 | Lógica en la UI | ✅ Corregida: `CorreccionViewModel`, `aplicarTecla`, validaciones en `CorregirCampoUseCase`; sin `KoinPlatform` en las pantallas |
+| 10 | El borrador vivía solo en memoria | ✅ Corregida: tabla `recibo_borrador` (Room v5) |
+
+También se corrigieron: el importe escrito se truncaba (78,29 → 78,28); la ventana del historial podía empezar en el recibo más antiguo e incluir meses futuros vacíos; el OCR no leía el consumo cuando etiquetas y valores venían en bloques distintos.
+
+### 12.2 Observaciones nuevas
+
+1. **`InyeccionTest` falla fuera de Recibo**: el módulo de prueba no registra `SectorDao`, que ahora necesita `AbastecimientosDelSector` por el cambio de Sector. Las 2 pruebas de ese archivo fallan; no tocan Recibo.
+2. **La sincronización empieza al abrir la pestaña Recibo**, porque vive en `ReciboViewModel` (así se evitó tocar `MainActivity`). En un teléfono nuevo, los recibos se restauran la primera vez que se entra a Recibo.
+3. **Los borrados no se propagan** a la nube (igual que Reserva). Si más adelante se agrega "eliminar recibo", habrá que decidir cómo sincronizarlo.
+4. **iOS todavía no arranca Koin**: `iosMain` no llama a `iniciarKoin` ni registra los DAO, así que en iOS las pantallas de Recibo que piden sus ViewModels a Koin aún no pueden abrirse (cuando se arranque, el borrador quedará en memoria hasta registrar `reciboBorradorDao`). Además `crearBaseDeDatos()` de iOS usa `fallbackToDestructiveMigration`, que la constitución (art. VI) prohíbe fuera del entorno local. Es código del core.
+5. **`ReciboEntity` conserva valores por defecto de columna** (`anio = 2026`, `mes = 1`) que vienen de migraciones anteriores; no se usan desde el código, pero quitarlos cambiaría el esquema.
