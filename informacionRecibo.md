@@ -128,7 +128,7 @@ Helpers privados: `buscar`, `buscarEntero`, `buscarTexto`, `buscarFecha`, `campo
 
 | Servicio | Funciones | Regla |
 |---|---|---|
-| `EvaluadorConsumo` | `promedio`, `variacionPorcentaje`, `evaluar` | **Única regla**: `consumo > LIMITE_M3 (100)` → `Atipico`; tipo PROMEDIO → `FacturadoPorPromedio`; sin meses previos → `SinHistorial`; si no → `Normal`. El promedio (hasta 6 meses) y la variación son solo referencia |
+| `EvaluadorConsumo` | `evaluar`, `promedio`, `variacionPorcentaje` | **Única regla**: `consumo > LIMITE_M3 (100)` → `ALTO_CONSUMO`; si no → `NORMAL`. El promedio (hasta 6 meses) y la variación solo se muestran en el detalle del último mes |
 | `ValidadorRecibo` | `validar(borrador)` | Advertencias no bloqueantes con los datos que haya: consumo 0–999, vencimiento ≥ emisión, lecturas coherentes con el consumo. Se muestran en "Revisa tu recibo" |
 
 ### 4.4 Modelos (value objects)
@@ -140,7 +140,8 @@ Helpers privados: `buscar`, `buscarEntero`, `buscarTexto`, `buscarFecha`, `campo
 | `Campo<T>` | `esDudoso` (< 0.7), `corregir(valor)`, `Campo.confirmado(valor)` |
 | `ReciboBorrador` | `idRecibo`, `esConfirmable` (período + consumo + importe), `tieneCamposDudosos`, `confirmar(id)` (lo que falta queda en `null`), `ReciboBorrador.vacio(periodo)` |
 | `Recibo` | `aBorrador()` (lleva el `id` para poder editarlo) |
-| `EstadoConsumo` | `Atipico` ("{Mes} superó los 100 m³. Revisa si hay alguna fuga en casa."), `Normal`, `SinHistorial`, `FacturadoPorPromedio` |
+| `EstadoConsumo` | `ALTO_CONSUMO` (chip "Alto consumo") o `NORMAL` (chip "Normal") |
+| `PeriodoConsumo.vencimiento()` | Día 11 del mes siguiente al consumo (setiembre → 11 de octubre); es lo que muestra la pantalla principal |
 
 ### 4.5 Datos
 
@@ -195,8 +196,8 @@ Helpers privados: `buscar`, `buscarEntero`, `buscarTexto`, `buscarFecha`, `campo
 | RF-08 | Corregir consumo, lecturas, importe y período con validación | `CorregirCampoUseCase`, `CorreccionViewModel` |
 | RF-09 | Confirmar con período + consumo + importe | `ConfirmarReciboUseCase` |
 | RF-10 | Impedir dos recibos del mismo mes, pero permitir **modificar** uno existente o moverlo de mes | `ResultadoConfirmacion.Duplicado`, `idRecibo` |
-| RF-11 | Resumen del último recibo: importe, vencimiento, consumo y variación | `ObservarResumenUseCase` |
-| RF-12 | Marcar **Alto consumo** cuando un mes supera 100 m³, con un mensaje corto | `EvaluadorConsumo`, `EstadoConsumo.Atipico` |
+| RF-11 | Resumen del último recibo: importe, vencimiento (11 del mes siguiente) y consumo | `ObservarResumenUseCase` |
+| RF-12 | Marcar **Alto consumo** cuando un mes supera 100 m³, con un mensaje corto | `EvaluadorConsumo`, `EstadoConsumo.ALTO_CONSUMO` |
 | RF-13 | Historial de los 6 meses que terminan en el último recibo; elegir un mes y modificarlo | `ObservarHistorialUseCase`, `HistorialViewModel` |
 | RF-14 | Conservar el borrador si el sistema cierra la app durante la revisión | `BorradorReciboStore` + `recibo_borrador` |
 | RF-15 | Con cuenta de Google, copiar los recibos a la nube y recuperarlos en otro teléfono | `SincronizadorRecibo`, `NubeReciboSupabase` |
@@ -355,7 +356,7 @@ flowchart TD
     Confirmar -- Guardado --> Guardar[(recibo)]
     Guardar --> Eval{¿Más de 100 m³?}
     Eval -- Sí --> Alto[Alto consumo: revisa fugas]
-    Eval -- No --> Normal[Normal / Registro / Por promedio]
+    Eval -- No --> Normal[Normal]
     Alto --> Resumen
     Normal --> Resumen
 ```
